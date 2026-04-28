@@ -87,19 +87,29 @@ def list_downloads(user: str = Depends(get_current_user)) -> list[JobInfo]:
     return jobs_svc.list_user_jobs(user)
 
 
-@router.get("/downloads/{job_id}", response_model=JobInfo)
-def job_status(job_id: str, user: str = Depends(get_current_user)) -> JobInfo:
+def _load_owned_job(job_id: str, user: str) -> JobInfo:
+    """Load a job and ensure it belongs to the calling user.
+
+    To avoid leaking the existence of jobs owned by other users, we return
+    the same 404 whether the job is missing or simply not owned by the caller.
+    """
+    raw = jobs_svc.get_raw(job_id)
     info = jobs_svc.get_job(job_id)
-    if not info:
+    if not raw or not info or raw.get("user") != user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
     return info
+
+
+@router.get("/downloads/{job_id}", response_model=JobInfo)
+def job_status(job_id: str, user: str = Depends(get_current_user)) -> JobInfo:
+    return _load_owned_job(job_id, user)
 
 
 @router.get("/downloads/{job_id}/file")
 def download_file(job_id: str, user: str = Depends(get_current_user)) -> FileResponse:
     settings = get_settings()
-    info = jobs_svc.get_job(job_id)
-    if not info or info.status != "completed" or not info.filename:
+    info = _load_owned_job(job_id, user)
+    if info.status != "completed" or not info.filename:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file not ready")
     path = Path(settings.download_dir) / info.filename
     if not path.exists():

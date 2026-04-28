@@ -40,10 +40,16 @@ def init_job(job_id: str, user: str, mode: str, url: str) -> None:
 
 
 def update_job(job_id: str, **fields: Any) -> None:
+    """Merge ``fields`` into the stored job record.
+
+    Explicit ``None`` values are preserved so callers can clear stale data
+    (e.g. wiping ``speed``/``eta`` once a job is complete). Use ``**fields``
+    to only update specific keys — keys you do not pass are left untouched.
+    """
     r = get_redis()
     raw = r.get(_job_key(job_id))
     data = json.loads(raw) if raw else {"id": job_id}
-    data.update({k: v for k, v in fields.items() if v is not None})
+    data.update(fields)
     r.set(_job_key(job_id), json.dumps(data), ex=_JOB_TTL)
 
 
