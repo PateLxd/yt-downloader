@@ -6,14 +6,15 @@ from functools import lru_cache
 from rq import Queue
 
 from .config import get_settings
-from .redis_client import get_redis
+from .redis_client import get_redis_binary
 
 
 @lru_cache
 def get_queue() -> Queue:
+    # RQ stores zlib-compressed pickle blobs; it needs the raw-bytes connection.
     return Queue(
         name=get_settings().queue_name,
-        connection=get_redis(),
+        connection=get_redis_binary(),
         default_timeout=60 * 60 * 3,  # 3h hard cap per job
     )
 

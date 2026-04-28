@@ -12,7 +12,7 @@ from rq import Worker
 
 from app.core.config import get_settings
 from app.core.queue import get_queue
-from app.core.redis_client import get_redis
+from app.core.redis_client import get_redis_binary
 
 
 def main() -> None:
@@ -21,7 +21,10 @@ def main() -> None:
     )
     settings = get_settings()
     settings.download_dir.mkdir(parents=True, exist_ok=True)
-    worker = Worker([get_queue()], connection=get_redis())
+    # RQ requires a raw-bytes connection (decode_responses=False) since it
+    # stores zlib-compressed pickle blobs; the decoded connection used
+    # elsewhere in the app would UnicodeDecodeError on those.
+    worker = Worker([get_queue()], connection=get_redis_binary())
     worker.work(with_scheduler=True)
 
 
