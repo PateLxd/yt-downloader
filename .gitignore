@@ -15,6 +15,17 @@ out/
 .env
 .env.local
 
+# Secrets (cookies, keys, etc.)
+# We commit secrets/cookies.txt as an empty placeholder so the docker-compose
+# bind mount always points at a real file. Local edits to it are ignored.
+secrets/*
+!secrets/cookies.txt
+!secrets/cookies.txt.example
+
+# Test artifacts (kept locally only)
+test-plan.md
+test-report.md
+
 # OS
 .DS_Store
 Thumbs.db
