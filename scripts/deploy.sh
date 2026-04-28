@@ -45,8 +45,31 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
+# Preserve any user-modified secrets across the reset. `git reset --hard`
+# does NOT honor `--skip-worktree`, so without this it would silently restore
+# the empty placeholder cookies.txt from origin and break YouTube downloads
+# until the user re-uploads their cookies.
+PRESERVED_DIR="$(mktemp -d)"
+trap 'rm -rf "$PRESERVED_DIR"' EXIT
+PRESERVED_FILES=(secrets/cookies.txt)
+for f in "${PRESERVED_FILES[@]}"; do
+  if [[ -s "$f" ]]; then
+    mkdir -p "$PRESERVED_DIR/$(dirname "$f")"
+    cp -p "$f" "$PRESERVED_DIR/$f"
+  fi
+done
+
 log "Resetting to origin/$BRANCH"
 git reset --hard "origin/$BRANCH"
+
+# Restore preserved files (only those we actually saved — i.e. non-empty
+# locally before the reset).
+for f in "${PRESERVED_FILES[@]}"; do
+  if [[ -f "$PRESERVED_DIR/$f" ]]; then
+    cp -p "$PRESERVED_DIR/$f" "$f"
+    log "Restored local $f across reset"
+  fi
+done
 
 # 2. Build
 log "Building images"

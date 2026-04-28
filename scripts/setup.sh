@@ -101,9 +101,11 @@ for i in {1..30}; do
   [[ $i == 30 ]] && warn "nginx not responding on :80 after 30s. Check: $DOCKER compose logs nginx"
 done
 
+GREEN=$'\033[1;32m'
+RESET=$'\033[0m'
 cat <<EOF
 
-\033[1;32mSetup complete.\033[0m
+${GREEN}Setup complete.${RESET}
 
 Stack:
   - Frontend + API:   http://$(hostname -I | awk '{print $1}')/        (nginx :80)
