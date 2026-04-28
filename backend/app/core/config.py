@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     rate_limit_per_hour: int = 5
     max_video_seconds: int = 2 * 60 * 60  # 2 hours
 
+    # yt-dlp
+    # Path to a Netscape-format cookies file. Lets yt-dlp pass YouTube's
+    # "Sign in to confirm you're not a bot" challenge (and similar) on hosts
+    # whose IPs Google flags. Leave empty to disable.
+    yt_dlp_cookies_path: str = ""
+
     # CORS
     cors_origins: str = "*"
 

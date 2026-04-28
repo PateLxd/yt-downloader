@@ -20,6 +20,10 @@ services:
       DOWNLOAD_DIR: /tmp/downloads
     volumes:
       - downloads:/tmp/downloads
+      # Optional: drop a Netscape cookies.txt at ./secrets/cookies.txt on the
+      # host. The mount is a no-op if the file doesn't exist (Compose creates
+      # an empty file). Set YT_DLP_COOKIES_PATH=/run/cookies.txt in .env to use it.
+      - ./secrets/cookies.txt:/run/cookies.txt:ro
     depends_on:
       valkey:
         condition: service_healthy
@@ -38,6 +42,7 @@ services:
       DOWNLOAD_DIR: /tmp/downloads
     volumes:
       - downloads:/tmp/downloads
+      - ./secrets/cookies.txt:/run/cookies.txt:ro
     depends_on:
       valkey:
         condition: service_healthy

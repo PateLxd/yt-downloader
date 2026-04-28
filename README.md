@@ -28,23 +28,53 @@ strict concurrency, rate limits, and 10-minute file lifetimes — sized for a
 - ⏱️ Per-user rate limit (**5/hour** by default)
 - 🗑️ `/tmp/downloads` files auto-deleted after **10 minutes** by the `cleanup` service (host crontab also supported)
 
-## Quickstart (Docker Compose)
+## Quickstart on a fresh VPS
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/PateLxd/yt-downloader.git
 cd yt-downloader
-cp .env.example .env
-# Edit .env — at minimum set JWT_SECRET and AUTH_USERS.
+./scripts/setup.sh         # installs Docker, generates a JWT secret, brings up the stack
+```
 
+This is idempotent — re-running is safe. After it finishes, the app is on
+`http://<your-vps-ip>/` with default creds `admin / changeme`. Edit `.env`
+(`AUTH_USERS=...`) and `docker compose restart backend` to change them
+**before exposing the app to the internet**. Multiple users:
+`AUTH_USERS=alice:secret1,bob:secret2` (you can also use bcrypt hashes via
+`htpasswd -nbB user pass`).
+
+### Re-deploy after code changes
+
+```bash
+./scripts/deploy.sh        # git pull + rebuild + rolling restart on origin/main
+```
+
+Override branch with `DEPLOY_BRANCH=staging ./scripts/deploy.sh`. Force a redeploy on the same commit with `FORCE=1 ./scripts/deploy.sh`.
+
+### Quickstart (manual, if you don't want the script)
+
+```bash
+cp .env.example .env       # edit JWT_SECRET and AUTH_USERS
 docker compose up -d --build
 # UI:  http://localhost/
 # API: http://localhost/api
 ```
 
-Default credentials from `.env.example` are `admin / changeme` — **change them
-before exposing the app**. Multiple users may be configured as
-`alice:secret1,bob:secret2` (you can also use bcrypt hashes generated via
-`htpasswd -nbB user pass`).
+### YouTube cookies (recommended on cloud VPS IPs)
+
+YouTube increasingly challenges anonymous yt-dlp requests with
+*"Sign in to confirm you're not a bot"*. Workaround: export a Netscape
+`cookies.txt` from a logged-in browser (e.g. Chrome extension
+*Get cookies.txt LOCALLY*), then:
+
+```bash
+mv ~/Downloads/cookies.txt ./secrets/cookies.txt
+sed -i 's|^YT_DLP_COOKIES_PATH=.*|YT_DLP_COOKIES_PATH=/run/cookies.txt|' .env
+docker compose restart backend worker
+```
+
+The file is bind-mounted into both `backend` and `worker` containers at
+`/run/cookies.txt` and is gitignored — safe to keep on disk.
 
 ### Services
 

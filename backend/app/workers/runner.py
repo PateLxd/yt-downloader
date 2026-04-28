@@ -78,6 +78,8 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
         "retries": 5,
         "fragment_retries": 5,
     }
+    if settings.yt_dlp_cookies_path:
+        opts["cookiefile"] = settings.yt_dlp_cookies_path
 
     if mode == "audio":
         bitrate = req.get("audio_bitrate") or "192"

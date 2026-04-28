@@ -15,6 +15,15 @@ out/
 .env
 .env.local
 
+# Secrets (cookies, keys, etc.)
+secrets/*
+!secrets/.gitkeep
+!secrets/cookies.txt.example
+
+# Test artifacts (kept locally only)
+test-plan.md
+test-report.md
+
 # OS
 .DS_Store
 Thumbs.db
