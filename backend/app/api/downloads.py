@@ -1,6 +1,7 @@
 """Download submission, status, and file-serving endpoints."""
 from __future__ import annotations
 
+import re
 import uuid
 from pathlib import Path
 
@@ -96,6 +97,26 @@ def list_downloads(user: str = Depends(get_current_user)) -> list[JobInfo]:
     return jobs_svc.list_user_jobs(user)
 
 
+# Filesystem-unsafe characters across Windows/macOS/Linux + control chars.
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\x00-\x1f\x7f<>:"/\\|?*]')
+
+
+def _safe_download_name(title: str, suffix: str) -> str:
+    """Sanitize a video title for use in a Content-Disposition filename.
+
+    Strips characters that break common filesystems and zero-width controls,
+    collapses whitespace, trims surrounding dots/spaces (which Windows hates),
+    and caps the basename to 150 chars to leave room for the extension.
+    Unicode (non-ASCII) is preserved — Starlette emits filename* with UTF-8
+    so modern browsers handle it correctly.
+    """
+    cleaned = _UNSAFE_FILENAME_CHARS.sub("", title)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().strip(".")
+    if not cleaned:
+        cleaned = "download"
+    return f"{cleaned[:150]}{suffix}"
+
+
 def _load_owned_job(job_id: str, user: str) -> JobInfo:
     """Load a job and ensure it belongs to the calling user.
 
@@ -124,8 +145,7 @@ def download_file(job_id: str, user: str = Depends(get_current_user)) -> FileRes
     if not path.exists():
         raise HTTPException(status.HTTP_410_GONE, "file expired")
 
-    safe_title = (info.title or job_id).replace("/", "_")[:120]
-    download_name = f"{safe_title}{path.suffix}"
+    download_name = _safe_download_name(info.title or job_id, path.suffix)
     return FileResponse(path, filename=download_name, media_type="application/octet-stream")
 
 

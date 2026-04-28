@@ -24,7 +24,16 @@ export function JobRow({ job }: { job: JobInfo }) {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await api.downloadFile(job.id, job.filename ?? `${job.id}`);
+      // Suggested filename uses the YouTube title (with the same extension
+      // as the on-disk file). The backend also sets Content-Disposition for
+      // direct fetches, but the <a download> attribute on a Blob URL takes
+      // precedence here so we have to send the title from the client too.
+      const ext = job.filename?.includes(".")
+        ? job.filename.slice(job.filename.lastIndexOf("."))
+        : "";
+      const base = (job.title ?? job.id).replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, "").trim();
+      const suggested = `${base.slice(0, 150) || job.id}${ext}`;
+      await api.downloadFile(job.id, suggested);
     } finally {
       setDownloading(false);
     }

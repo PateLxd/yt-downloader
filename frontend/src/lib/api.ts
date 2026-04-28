@@ -87,6 +87,7 @@ export type DownloadRequest = {
   preset?: "best" | "balanced" | "saver" | "custom";
   max_height?: number | null;
   container?: "mp4" | "mkv" | "webm";
+  format_id?: string | null;
   audio_bitrate?: "64" | "128" | "192" | "320";
   start?: string;
   end?: string;

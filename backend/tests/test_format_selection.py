@@ -27,6 +27,15 @@ def test_video_webm_no_mp4_constraint():
     assert "ext=mp4" not in sel
 
 
+def test_explicit_format_id_overrides_preset():
+    sel = _format_for_video("balanced", None, "mp4", format_id="137")
+    # Explicit format_id wins, wrapped with +bestaudio for video-only formats
+    # and with a fallback to format_id alone for muxed/audio-only.
+    assert sel == "137+bestaudio/137"
+    # No preset/cap leaks in.
+    assert "height" not in sel
+
+
 def test_clip_mode_skips_max_duration_filter():
     """Long videos must not be rejected before the clip's range is applied."""
     from app.workers.runner import _build_ydl_opts

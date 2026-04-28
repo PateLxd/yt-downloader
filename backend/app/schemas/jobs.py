@@ -55,6 +55,10 @@ class DownloadRequest(BaseModel):
     preset: VideoPreset | None = "balanced"
     max_height: int | None = Field(default=None, ge=144, le=4320)
     container: Literal["mp4", "mkv", "webm"] = "mp4"
+    # Explicit yt-dlp format_id (overrides `preset`/`max_height` when set).
+    # The backend wraps it as `{format_id}+bestaudio/{format_id}` so video-only
+    # formats get muxed with the best audio track automatically.
+    format_id: str | None = None
     # Audio
     audio_bitrate: Literal["64", "128", "192", "320"] | None = "192"
     # Clip
