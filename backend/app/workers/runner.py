@@ -18,7 +18,19 @@ from ..services.jobs import update_job
 log = logging.getLogger(__name__)
 
 
-def _format_for_video(preset: str | None, max_height: int | None, container: str) -> str:
+def _format_for_video(
+    preset: str | None,
+    max_height: int | None,
+    container: str,
+    format_id: str | None = None,
+) -> str:
+    # Explicit format selection from the UI's "All formats" picker. Wrap with
+    # +bestaudio so video-only formats (e.g. DASH 1080p) get muxed; the
+    # `/{format_id}` fallback handles muxed/audio-only formats that already
+    # contain audio.
+    if format_id:
+        return f"{format_id}+bestaudio/{format_id}"
+
     height_cap: int | None
     if preset == "best":
         height_cap = 2160
@@ -103,7 +115,10 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
         opts.update(
             {
                 "format": _format_for_video(
-                    req.get("preset"), req.get("max_height"), req.get("container", "mp4")
+                    req.get("preset"),
+                    req.get("max_height"),
+                    req.get("container", "mp4"),
+                    req.get("format_id"),
                 ),
                 "merge_output_format": req.get("container", "mp4"),
                 "download_ranges": _section_ranges(section),
@@ -114,7 +129,10 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
         opts.update(
             {
                 "format": _format_for_video(
-                    req.get("preset"), req.get("max_height"), req.get("container", "mp4")
+                    req.get("preset"),
+                    req.get("max_height"),
+                    req.get("container", "mp4"),
+                    req.get("format_id"),
                 ),
                 "merge_output_format": req.get("container", "mp4"),
             }
