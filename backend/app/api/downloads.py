@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from ..core.config import get_settings
 from ..core.queue import active_job_count, get_queue
 from ..core.rate_limit import check_and_increment, usage
+from ..core.rate_limit import rollback as rollback_rate_limit
 from ..schemas.jobs import (
     CapacityResponse,
     DownloadRequest,
@@ -57,7 +58,7 @@ def create_download(req: DownloadRequest, user: str = Depends(get_current_user))
             status.HTTP_503_SERVICE_UNAVAILABLE, "please wait for some time"
         )
 
-    allowed, used, limit = check_and_increment(user)
+    allowed, used, limit, rl_member = check_and_increment(user)
     if not allowed:
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
@@ -65,17 +66,25 @@ def create_download(req: DownloadRequest, user: str = Depends(get_current_user))
         )
 
     job_id = uuid.uuid4().hex[:12]
-    jobs_svc.init_job(job_id, user=user, mode=req.mode, url=str(req.url))
-
-    queue = get_queue()
-    queue.enqueue(
-        "app.workers.runner.run_download",
-        job_id,
-        req.model_dump(mode="json"),
-        job_id=job_id,
-        result_ttl=3600,
-        failure_ttl=3600,
-    )
+    try:
+        jobs_svc.init_job(job_id, user=user, mode=req.mode, url=str(req.url))
+        queue = get_queue()
+        queue.enqueue(
+            "app.workers.runner.run_download",
+            job_id,
+            req.model_dump(mode="json"),
+            job_id=job_id,
+            result_ttl=3600,
+            failure_ttl=3600,
+        )
+    except Exception as exc:
+        # Roll back the rate-limit slot we just consumed so the user doesn't
+        # permanently lose it on a transient infra error (e.g. RQ queue
+        # serialization failure, Valkey hiccup).
+        rollback_rate_limit(user, rl_member)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, f"failed to enqueue job: {exc}"
+        ) from exc
 
     info = jobs_svc.get_job(job_id)
     assert info is not None

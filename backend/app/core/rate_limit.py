@@ -36,11 +36,14 @@ def _key(user: str) -> str:
     return f"ytdl:ratelimit:{user}"
 
 
-def check_and_increment(user: str) -> tuple[bool, int, int]:
-    """Returns (allowed, used, limit).
+def check_and_increment(user: str) -> tuple[bool, int, int, str | None]:
+    """Returns ``(allowed, used, limit, member)``.
 
     ``used`` reflects the count *after* the (possible) increment when allowed,
-    or the current count when denied.
+    or the current count when denied. ``member`` is the sorted-set entry that
+    was added — pass it to :func:`rollback` to undo the increment if a
+    subsequent step (e.g. enqueueing the job) fails. ``member`` is ``None``
+    when the request was denied (nothing was added).
     """
     settings = get_settings()
     limit = settings.rate_limit_per_hour
@@ -56,7 +59,20 @@ def check_and_increment(user: str) -> tuple[bool, int, int]:
         keys=[_key(user)],
         args=[window_start, limit, now, member, 3600 + 60],
     )
-    return bool(int(allowed_raw)), int(used_raw), limit
+    allowed = bool(int(allowed_raw))
+    return allowed, int(used_raw), limit, member if allowed else None
+
+
+def rollback(user: str, member: str | None) -> None:
+    """Remove a previously-added member from the user's rate-limit window.
+
+    Used when the operation that consumed a slot subsequently failed (e.g.
+    job enqueue raised), so the slot isn't permanently lost for the rest of
+    the hour.
+    """
+    if not member:
+        return
+    get_redis().zrem(_key(user), member)
 
 
 def usage(user: str) -> tuple[int, int]:

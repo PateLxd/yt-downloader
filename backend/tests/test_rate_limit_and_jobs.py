@@ -45,14 +45,16 @@ def test_rate_limit_blocks_after_limit():
     user = f"u-{uuid.uuid4().hex[:6]}"
 
     limit = get_settings().rate_limit_per_hour
-    used_seq: list[int] = []
+    used_seq: list[tuple[int, int]] = []
+    last_member: str | None = None
     for _ in range(limit + 2):
-        allowed, used, _ = rate_limit.check_and_increment(user)
-        used_seq.append((1 if allowed else 0, used))  # type: ignore[arg-type]
+        allowed, used, _, member = rate_limit.check_and_increment(user)
+        used_seq.append((1 if allowed else 0, used))
+        if allowed:
+            last_member = member
 
     allowed_count = sum(1 for a, _ in used_seq if a == 1)
     assert allowed_count == limit
-    # Once at limit, denials report the current count (== limit), not limit+1.
     last_allowed_used, last_denied_used = None, None
     for a, used in used_seq:
         if a == 1:
@@ -61,6 +63,19 @@ def test_rate_limit_blocks_after_limit():
             last_denied_used = used
     assert last_allowed_used == limit
     assert last_denied_used == limit
+
+    # Rollback frees up exactly one slot for re-use within the same window.
+    assert last_member is not None
+    rate_limit.rollback(user, last_member)
+    allowed_after, used_after, _, _ = rate_limit.check_and_increment(user)
+    assert allowed_after is True
+    assert used_after == limit
+
+
+def test_rollback_is_safe_with_none_member():
+    from app.core import rate_limit
+
+    rate_limit.rollback("anyone", None)  # must not raise
 
 
 def test_update_job_preserves_explicit_none():
