@@ -17,7 +17,9 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     # Support both bcrypt hashes and plaintext (for the `auth_users` env shortcut).
-    if hashed.startswith("$2"):
+    # Match the real bcrypt prefixes precisely so a plaintext password that
+    # happens to start with "$2" (e.g. "$2fast4u") isn't mistaken for a hash.
+    if hashed.startswith(("$2a$", "$2b$", "$2y$")):
         try:
             return _pwd.verify(plain, hashed)
         except Exception:

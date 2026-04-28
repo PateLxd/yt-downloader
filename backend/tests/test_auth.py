@@ -18,6 +18,21 @@ def test_authenticate_invalid():
     assert not authenticate("eve", "anything")
 
 
+def test_plaintext_password_starting_with_dollar2_is_not_treated_as_bcrypt(monkeypatch):
+    """Plaintext like '$2fast4u' must not be misrouted to bcrypt verify."""
+    from app.core import config
+
+    monkeypatch.setenv("AUTH_USERS", "carol:$2fast4u")
+    config.get_settings.cache_clear()
+    try:
+        assert authenticate("carol", "$2fast4u")
+        assert not authenticate("carol", "wrong")
+    finally:
+        # Restore the cached settings so other tests in this module see the
+        # module-level AUTH_USERS again.
+        config.get_settings.cache_clear()
+
+
 def test_user_exists():
     assert user_exists("alice")
     assert not user_exists("eve")

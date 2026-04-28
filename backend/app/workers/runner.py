@@ -118,8 +118,12 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
             }
         )
 
-    # Hard cap duration based on settings.max_video_seconds
-    opts["match_filter"] = _max_duration_filter(settings.max_video_seconds)
+    # Hard cap duration based on settings.max_video_seconds.
+    # Skip in clip mode: the user is asking for a slice, so the source's full
+    # duration is irrelevant — match_filter would otherwise reject e.g. a
+    # 30-second clip taken from a 3-hour livestream.
+    if mode != "clip":
+        opts["match_filter"] = _max_duration_filter(settings.max_video_seconds)
     return opts
 
 

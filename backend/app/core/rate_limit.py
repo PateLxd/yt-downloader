@@ -8,6 +8,7 @@ operation.
 from __future__ import annotations
 
 import time
+import uuid
 
 from .config import get_settings
 from .redis_client import get_redis
@@ -46,7 +47,10 @@ def check_and_increment(user: str) -> tuple[bool, int, int]:
     now = time.time()
     window_start = now - 3600
     r = get_redis()
-    member = f"{now}-{int(now * 1000) % 100000}"
+    # Random suffix guarantees uniqueness even when concurrent requests share
+    # the same `time.time()` reading (otherwise ZADD with a duplicate member
+    # would silently no-op and let extra requests slip past the limit).
+    member = f"{now}-{uuid.uuid4().hex[:8]}"
     script = r.register_script(_LUA)
     allowed_raw, used_raw = script(
         keys=[_key(user)],
