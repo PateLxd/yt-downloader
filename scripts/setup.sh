@@ -64,10 +64,13 @@ if [[ ! -f .env ]]; then
 fi
 
 # 4. cookies placeholder
+# secrets/cookies.txt is committed as an empty file so the docker-compose bind
+# mount always resolves to a file (not a Docker-created directory). Re-create
+# it only if a checkout/clone problem dropped it.
 mkdir -p secrets
 if [[ ! -f secrets/cookies.txt ]]; then
   : > secrets/cookies.txt
-  log "Created empty secrets/cookies.txt (drop your real Netscape cookies.txt here to unlock YouTube)"
+  log "Created empty secrets/cookies.txt"
 fi
 
 # 5. Build + up

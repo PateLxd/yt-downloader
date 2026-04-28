@@ -20,9 +20,10 @@ services:
       DOWNLOAD_DIR: /tmp/downloads
     volumes:
       - downloads:/tmp/downloads
-      # Optional: drop a Netscape cookies.txt at ./secrets/cookies.txt on the
-      # host. The mount is a no-op if the file doesn't exist (Compose creates
-      # an empty file). Set YT_DLP_COOKIES_PATH=/run/cookies.txt in .env to use it.
+      # Mount the host's ./secrets/cookies.txt (committed as an empty placeholder
+      # so the bind always resolves to a file, never a Docker-created directory).
+      # Replace it with a Netscape cookies.txt exported from a logged-in browser
+      # and set YT_DLP_COOKIES_PATH=/run/cookies.txt in .env to use it.
       - ./secrets/cookies.txt:/run/cookies.txt:ro
     depends_on:
       valkey:

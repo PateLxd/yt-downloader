@@ -71,10 +71,14 @@ YouTube increasingly challenges anonymous yt-dlp requests with
 mv ~/Downloads/cookies.txt ./secrets/cookies.txt
 sed -i 's|^YT_DLP_COOKIES_PATH=.*|YT_DLP_COOKIES_PATH=/run/cookies.txt|' .env
 docker compose restart backend worker
+# Tell git to ignore your local edits to the placeholder (prevents accidental commits):
+git update-index --skip-worktree secrets/cookies.txt
 ```
 
 The file is bind-mounted into both `backend` and `worker` containers at
-`/run/cookies.txt` and is gitignored — safe to keep on disk.
+`/run/cookies.txt`. The repo ships an empty `secrets/cookies.txt` placeholder
+so the bind mount always resolves to a file — overwrite it with your real
+cookies. `secrets/cookies.txt.example` documents the expected format.
 
 ### Services
 
