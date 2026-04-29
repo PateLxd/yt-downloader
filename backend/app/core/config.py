@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # whose IPs Google flags. Leave empty to disable.
     yt_dlp_cookies_path: str = ""
 
+    # TTL for the runtime cookies override pasted through the UI. The file-
+    # on-disk cookies path above is long-lived; this one is a short-lived
+    # safety valve so a user can unstick a stale-cookie situation from the
+    # browser without SSHing into the box. Defaults to 7 days.
+    cookies_override_ttl_seconds: int = 7 * 24 * 60 * 60
+
     # CORS
     cors_origins: str = "*"
 

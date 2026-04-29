@@ -5,8 +5,8 @@ from typing import Any
 
 from yt_dlp import YoutubeDL
 
-from ..core.config import get_settings
 from ..schemas.jobs import FormatInfo, MetadataResponse
+from .cookies import apply_cookies_to_opts, cleanup_tmp_cookies
 
 
 def _classify(fmt: dict[str, Any]) -> str:
@@ -22,17 +22,18 @@ def _classify(fmt: dict[str, Any]) -> str:
 
 
 def fetch_metadata(url: str) -> MetadataResponse:
-    settings = get_settings()
     opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
     }
-    if settings.yt_dlp_cookies_path:
-        opts["cookiefile"] = settings.yt_dlp_cookies_path
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    tmp_cookies = apply_cookies_to_opts(opts)
+    try:
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    finally:
+        cleanup_tmp_cookies(tmp_cookies)
 
     formats: list[FormatInfo] = []
     for f in info.get("formats", []) or []:

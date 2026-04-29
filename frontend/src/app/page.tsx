@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type JobInfo, type Metadata } from "@/lib/api";
 import { AuthGate } from "@/components/AuthGate";
 import { Topbar } from "@/components/Topbar";
@@ -8,6 +8,7 @@ import { UrlForm } from "@/components/UrlForm";
 import { VideoPreview } from "@/components/VideoPreview";
 import { DownloadPanel } from "@/components/DownloadPanel";
 import { JobRow } from "@/components/JobRow";
+import { CookiesModal, type OpenReason } from "@/components/CookiesModal";
 
 function DashboardInner() {
   const [meta, setMeta] = useState<Metadata | null>(null);
@@ -15,12 +16,51 @@ function DashboardInner() {
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<JobInfo[]>([]);
   const [busy, setBusy] = useState(false);
+  const [cookiesOpen, setCookiesOpen] = useState(false);
+  const [cookiesReason, setCookiesReason] = useState<OpenReason | null>(null);
+  // Job ids we've already surfaced as cookies_required so the modal doesn't
+  // keep popping on every 3s poll tick if the user dismissed it.
+  const seenJobCookieFailures = useRef<Set<string>>(new Set());
+  // Mirror of `cookiesOpen` so the long-lived setInterval closure can read
+  // the current value. The state variable itself is captured at mount and
+  // would otherwise stay frozen at `false`.
+  const cookiesOpenRef = useRef(false);
+
+  const openCookiesModal = (reason: OpenReason) => {
+    setCookiesReason(reason);
+    setCookiesOpen(true);
+    cookiesOpenRef.current = true;
+  };
+
+  const closeCookiesModal = () => {
+    setCookiesOpen(false);
+    setCookiesReason(null);
+    cookiesOpenRef.current = false;
+  };
 
   const refreshRecent = async () => {
     try {
       const [list, cap] = await Promise.all([api.listDownloads(), api.capacity()]);
       setRecent(list);
       setBusy(cap.busy);
+      // Auto-open the cookies modal the first time we see a job fail for
+      // cookies_required. If the user dismisses, we won't re-open for the same
+      // job id.
+      const cookieFail = list.find(
+        (j) => j.status === "failed" && j.error_code === "cookies_required",
+      );
+      if (cookieFail && !seenJobCookieFailures.current.has(cookieFail.id)) {
+        seenJobCookieFailures.current.add(cookieFail.id);
+        if (!cookiesOpenRef.current) {
+          openCookiesModal({
+            kind: "job",
+            message:
+              cookieFail.error ??
+              "A download failed because YouTube is asking for a signed-in session. Paste fresh cookies and retry.",
+            jobId: cookieFail.id,
+          });
+        }
+      }
     } catch {
       /* ignore — auth gate will redirect if needed */
     }
@@ -30,6 +70,7 @@ function DashboardInner() {
     refreshRecent();
     const id = window.setInterval(refreshRecent, 3000);
     return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFetch = async (url: string) => {
@@ -40,10 +81,25 @@ function DashboardInner() {
       const m = await api.metadata(url);
       setMeta(m);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to fetch metadata");
+      if (err instanceof ApiError && err.code === "cookies_required") {
+        openCookiesModal({ kind: "metadata", message: err.message, url });
+      } else {
+        setError(err instanceof ApiError ? err.message : "Failed to fetch metadata");
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCookiesSaved = async (reason: OpenReason | null) => {
+    closeCookiesModal();
+    // Auto-retry the action that triggered the modal so the user doesn't
+    // have to click again.
+    if (reason?.kind === "metadata") {
+      await handleFetch(reason.url);
+    }
+    // For job-failure reasons, just surface a hint — the user knows what to
+    // retry; we don't want to silently re-enqueue a rate-limit-consuming job.
   };
 
   return (
@@ -82,18 +138,46 @@ function DashboardInner() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Recent downloads</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Recent downloads</h2>
+            <button
+              type="button"
+              onClick={() => openCookiesModal({ kind: "manual" })}
+              className="text-xs font-medium text-muted-foreground hover:text-primary hover:underline"
+            >
+              Update cookies
+            </button>
+          </div>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No downloads yet.</p>
           ) : (
             <div className="space-y-2">
               {recent.slice(0, 5).map((j) => (
-                <JobRow key={j.id} job={j} />
+                <JobRow
+                  key={j.id}
+                  job={j}
+                  onCookiesNeeded={() =>
+                    openCookiesModal({
+                      kind: "job",
+                      message:
+                        j.error ??
+                        "YouTube wants a signed-in session. Paste fresh cookies and retry this download.",
+                      jobId: j.id,
+                    })
+                  }
+                />
               ))}
             </div>
           )}
         </section>
       </div>
+
+      <CookiesModal
+        open={cookiesOpen}
+        reason={cookiesReason}
+        onClose={closeCookiesModal}
+        onSaved={handleCookiesSaved}
+      />
     </main>
   );
 }

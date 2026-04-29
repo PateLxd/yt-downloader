@@ -76,6 +76,10 @@ class JobInfo(BaseModel):
     filename: str | None = None
     size_bytes: int | None = None
     error: str | None = None
+    # Structured error tag so the frontend can handle specific failure
+    # modes (e.g. "cookies_required" → pop the paste-cookies modal)
+    # without string-matching the free-form `error` text.
+    error_code: str | None = None
     mode: JobMode | None = None
     created_at: float | None = None
     finished_at: float | None = None

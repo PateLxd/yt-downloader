@@ -46,8 +46,8 @@ def test_clip_mode_skips_max_duration_filter():
         "max_height": None,
         "container": "mp4",
     }
-    video_opts = _build_ydl_opts("j1", {**common, "mode": "video"}, "/tmp/out.%(ext)s")
-    clip_opts = _build_ydl_opts(
+    video_opts, _ = _build_ydl_opts("j1", {**common, "mode": "video"}, "/tmp/out.%(ext)s")
+    clip_opts, _ = _build_ydl_opts(
         "j2",
         {**common, "mode": "clip", "start": "0:00:10", "end": "0:00:30"},
         "/tmp/out.%(ext)s",

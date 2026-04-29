@@ -69,6 +69,7 @@ def get_job(job_id: str) -> JobInfo | None:
         filename=data.get("filename"),
         size_bytes=data.get("size_bytes"),
         error=data.get("error"),
+        error_code=data.get("error_code"),
         mode=data.get("mode"),
         created_at=data.get("created_at"),
         finished_at=data.get("finished_at"),
