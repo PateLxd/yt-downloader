@@ -216,7 +216,11 @@ async def _accept_consent(page) -> None:
         ).first
         if await consent.count():
             await consent.click(timeout=3000)
-            await page.wait_for_load_state("networkidle", timeout=10000)
+            # Don't wait for networkidle here — YouTube keeps issuing
+            # background requests indefinitely, especially on flagged IPs,
+            # and we'd hang the whole refresh on a step that's already
+            # functionally done.
+            await asyncio.sleep(2)
             log.info("Consent dialog accepted")
     except (PlaywrightTimeout, PlaywrightError) as exc:
         log.warning("consent handling skipped: %s", exc)
@@ -224,10 +228,24 @@ async def _accept_consent(page) -> None:
 
 async def _play_test_video(page) -> None:
     try:
-        await page.goto(TEST_VIDEO_URL, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_selector("video", timeout=15000)
-        await page.evaluate("document.querySelector('video').play()")
-        await asyncio.sleep(5)
+        await page.goto(
+            TEST_VIDEO_URL, wait_until="domcontentloaded", timeout=20000
+        )
+        try:
+            await page.wait_for_selector("video", timeout=10000)
+            # Fire .play() inside the page but DO NOT await its promise —
+            # on a flagged datacenter IP YouTube can serve an "unavailable"
+            # player whose play() promise never resolves, hanging the
+            # whole refresh forever. We just kick off playback and move on.
+            await page.evaluate(
+                "() => { const v = document.querySelector('video'); "
+                "if (v && v.play) { v.play().catch(() => {}); } return null; }"
+            )
+        except (PlaywrightTimeout, PlaywrightError) as exc:
+            log.debug("video element not playable: %s", exc)
+        # Short pause so the session cookies (YSC, VISITOR_INFO1_LIVE_PRIVATE
+        # etc.) have time to land.
+        await asyncio.sleep(3)
     except (PlaywrightTimeout, PlaywrightError) as exc:
         log.warning("test video step failed: %s", exc)
 
@@ -263,7 +281,19 @@ def _log_session_health(cookies: list[dict[str, Any]]) -> None:
 async def run_once() -> None:
     ensure_state_dir()
     initial_state = load_initial_state()
+    # Hard ceiling on the entire pass: if Playwright / YouTube hangs on
+    # any step (a captcha redirect, a stalled network request, a never-
+    # resolving play() promise), we bail out cleanly so the next cycle
+    # gets to try again instead of the whole loop wedging forever.
+    try:
+        await asyncio.wait_for(_run_once_inner(initial_state), timeout=150)
+    except asyncio.TimeoutError:
+        log.error(
+            "refresh exceeded the 150s ceiling and was aborted; will retry next cycle"
+        )
 
+
+async def _run_once_inner(initial_state: dict[str, Any] | str | None) -> None:
     async with async_playwright() as p:
         browser: Browser = await p.chromium.launch(
             headless=True,
