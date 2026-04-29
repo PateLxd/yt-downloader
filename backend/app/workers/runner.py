@@ -122,7 +122,14 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
                 ),
                 "merge_output_format": req.get("container", "mp4"),
                 "download_ranges": _section_ranges(section),
-                "force_keyframes_at_cuts": True,
+                # Stream-copy the clip instead of re-encoding at exact
+                # keyframes. force_keyframes_at_cuts=True would re-encode the
+                # whole segment with ffmpeg, which on a 2-core VPS can take
+                # many minutes and appears as a stuck job to the user. Trade-
+                # off: start/end may land a few seconds early (at the nearest
+                # upstream keyframe), which is acceptable for human-picked
+                # ranges and fast enough to feel instant.
+                "force_keyframes_at_cuts": False,
             }
         )
     else:  # video
