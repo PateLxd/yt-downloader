@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, Download, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Download, KeyRound, Loader2, XCircle } from "lucide-react";
 import { api, type JobInfo } from "@/lib/api";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -19,7 +19,13 @@ const StatusIcon = ({ status }: { status: JobInfo["status"] }) => {
   return <XCircle className="h-4 w-4" />;
 };
 
-export function JobRow({ job }: { job: JobInfo }) {
+export function JobRow({
+  job,
+  onCookiesNeeded,
+}: {
+  job: JobInfo;
+  onCookiesNeeded?: () => void;
+}) {
   const [downloading, setDownloading] = useState(false);
   const handleDownload = async () => {
     setDownloading(true);
@@ -81,6 +87,13 @@ export function JobRow({ job }: { job: JobInfo }) {
               <Download className="h-4 w-4" />
             )}
             Save
+          </button>
+        )}
+
+        {job.status === "failed" && job.error_code === "cookies_required" && onCookiesNeeded && (
+          <button className="btn-secondary" onClick={onCookiesNeeded}>
+            <KeyRound className="h-4 w-4" />
+            Update cookies
           </button>
         )}
       </div>

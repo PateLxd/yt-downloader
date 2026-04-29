@@ -20,6 +20,7 @@ from ..schemas.jobs import (
     MetadataResponse,
 )
 from ..services import jobs as jobs_svc
+from ..services.cookies import is_bot_challenge_error
 from ..services.metadata import fetch_metadata
 from .deps import get_current_user
 
@@ -31,6 +32,22 @@ def metadata(req: MetadataRequest, user: str = Depends(get_current_user)) -> Met
     try:
         return fetch_metadata(str(req.url))
     except Exception as exc:
+        if is_bot_challenge_error(exc):
+            # 422 with a structured detail so the frontend can open the
+            # "paste fresh cookies" modal instead of showing the raw yt-dlp
+            # text. 422 (rather than 400) keeps regular validation errors
+            # distinct from "we need the user to do something".
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "cookies_required",
+                    "message": (
+                        "YouTube is asking for a signed-in session. Paste a "
+                        "fresh cookies.txt exported from a logged-in browser "
+                        "and retry."
+                    ),
+                },
+            ) from exc
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST, f"failed to fetch metadata: {exc}"
         ) from exc

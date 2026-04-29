@@ -10,6 +10,9 @@ node_modules/
 .next/
 out/
 *.log
+# TypeScript incremental build cache; regenerated on every `tsc` and causes
+# pointless merge churn between branches.
+tsconfig.tsbuildinfo
 
 # Env
 .env

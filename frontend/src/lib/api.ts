@@ -21,14 +21,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: string = res.statusText;
+    let code: string | undefined;
     try {
       const body = await res.json();
-      detail = body?.detail ?? detail;
+      const raw = body?.detail;
+      if (raw && typeof raw === "object") {
+        // Structured detail like {code: "cookies_required", message: "..."}
+        code = typeof raw.code === "string" ? raw.code : undefined;
+        detail = typeof raw.message === "string" ? raw.message : JSON.stringify(raw);
+      } else if (typeof raw === "string") {
+        detail = raw;
+      }
     } catch {
       /* noop */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, code);
   }
   if (res.status === 204) return undefined as unknown as T;
   return (await res.json()) as T;
@@ -36,9 +44,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -76,9 +86,16 @@ export type JobInfo = {
   filename?: string | null;
   size_bytes?: number | null;
   error?: string | null;
+  error_code?: string | null;
   mode?: "video" | "audio" | "clip" | null;
   created_at?: number | null;
   finished_at?: number | null;
+};
+
+export type CookiesStatus = {
+  present: boolean;
+  expires_in_seconds?: number | null;
+  source: "override" | "file" | "none";
 };
 
 export type DownloadRequest = {
@@ -108,6 +125,13 @@ export const api = {
     request<{ busy: boolean; active_jobs: number; max_jobs: number; message?: string | null }>(
       "/capacity"
     ),
+  saveCookies: (content: string) =>
+    request<CookiesStatus>("/auth/cookies", {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
+  cookiesStatus: () => request<CookiesStatus>("/auth/cookies"),
+  clearCookies: () => request<CookiesStatus>("/auth/cookies", { method: "DELETE" }),
   createDownload: (req: DownloadRequest) =>
     request<JobInfo>("/downloads", { method: "POST", body: JSON.stringify(req) }),
   listDownloads: () => request<JobInfo[]>("/downloads"),

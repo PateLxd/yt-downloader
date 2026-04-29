@@ -13,6 +13,11 @@ from typing import Any
 from yt_dlp import YoutubeDL
 
 from ..core.config import get_settings
+from ..services.cookies import (
+    apply_cookies_to_opts,
+    cleanup_tmp_cookies,
+    is_bot_challenge_error,
+)
 from ..services.jobs import update_job
 
 log = logging.getLogger(__name__)
@@ -77,7 +82,7 @@ def _hook(job_id: str):
     return hook
 
 
-def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str, Any]:
+def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> tuple[dict[str, Any], str | None]:
     settings = get_settings()
     mode = req["mode"]
     opts: dict[str, Any] = {
@@ -90,8 +95,7 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
         "retries": 5,
         "fragment_retries": 5,
     }
-    if settings.yt_dlp_cookies_path:
-        opts["cookiefile"] = settings.yt_dlp_cookies_path
+    tmp_cookies = apply_cookies_to_opts(opts)
 
     if mode == "audio":
         bitrate = req.get("audio_bitrate") or "192"
@@ -151,7 +155,7 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> dict[str,
     # 30-second clip taken from a 3-hour livestream.
     if mode != "clip":
         opts["match_filter"] = _max_duration_filter(settings.max_video_seconds)
-    return opts
+    return opts, tmp_cookies
 
 
 def _max_duration_filter(max_seconds: int):
@@ -190,7 +194,7 @@ def run_download(job_id: str, request: dict[str, Any]) -> dict[str, Any]:
     ext = "mp3" if mode == "audio" else request.get("container", "mp4")
     outtmpl = str(settings.download_dir / f"{job_id}.%(ext)s")
 
-    opts = _build_ydl_opts(job_id, request, outtmpl)
+    opts, tmp_cookies = _build_ydl_opts(job_id, request, outtmpl)
     try:
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(request["url"], download=True)
@@ -217,13 +221,20 @@ def run_download(job_id: str, request: dict[str, Any]) -> dict[str, Any]:
         return {"job_id": job_id, "filename": produced.name, "size": size}
     except Exception as exc:
         log.exception("job %s failed", job_id)
+        # Tag cookie-challenge failures so the frontend can pop a
+        # "paste fresh cookies" modal instead of showing the raw yt-dlp
+        # error and letting the user flounder.
+        error_code = "cookies_required" if is_bot_challenge_error(exc) else None
         update_job(
             job_id,
             status="failed",
             error=str(exc)[:500],
+            error_code=error_code,
             finished_at=time.time(),
         )
         raise
+    finally:
+        cleanup_tmp_cookies(tmp_cookies)
 
 
 def _resolve_output(directory: Path, job_id: str, preferred_ext: str) -> Path | None:
