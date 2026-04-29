@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, ListChecks, Home } from "lucide-react";
 import { setToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { CookiesStatusButton } from "./CookiesStatusButton";
 
 export function Topbar() {
   const pathname = usePathname();
@@ -42,15 +43,18 @@ export function Topbar() {
             })}
           </nav>
         </div>
-        <button
-          className="btn-secondary"
-          onClick={() => {
-            setToken(null);
-            router.replace("/login");
-          }}
-        >
-          <LogOut className="h-4 w-4" /> Logout
-        </button>
+        <div className="flex items-center gap-2">
+          <CookiesStatusButton />
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              setToken(null);
+              router.replace("/login");
+            }}
+          >
+            <LogOut className="h-4 w-4" /> Logout
+          </button>
+        </div>
       </div>
     </header>
   );
