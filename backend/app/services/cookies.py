@@ -120,6 +120,13 @@ _BOT_CHALLENGE_MARKERS = (
     "cookies are required",
     "confirm your age",  # age-gated videos need cookies too
     "this video is only available for registered users",
+    # YouTube's stub-player failure mode on flagged datacenter IPs: yt-dlp
+    # gets through enough of extract_info that the bot-challenge string
+    # never appears, but the player it gets back has no real formats, so
+    # the format selector dies with "Requested format is not available".
+    # Root cause is still "we need a signed-in session", so route it to
+    # the same modal.
+    "requested format is not available",
 )
 
 

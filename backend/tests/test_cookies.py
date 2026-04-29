@@ -62,6 +62,9 @@ def test_bot_challenge_detection_matches_known_phrases():
         "use --cookies for authentication",
         "Cookies are required for this extractor",
         "Please confirm your age",
+        # YouTube stub-player on flagged datacenter IPs surfaces this
+        # downstream symptom instead of the bot-challenge string.
+        "ERROR: [youtube] xyz: Requested format is not available. Use --list-formats for a list of available formats",
     ]:
         assert cookies_svc.is_bot_challenge_error(Exception(msg)), msg
 

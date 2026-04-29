@@ -138,16 +138,7 @@ function DashboardInner() {
         </section>
 
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recent downloads</h2>
-            <button
-              type="button"
-              onClick={() => openCookiesModal({ kind: "manual" })}
-              className="text-xs font-medium text-muted-foreground hover:text-primary hover:underline"
-            >
-              Update cookies
-            </button>
-          </div>
+          <h2 className="text-lg font-semibold">Recent downloads</h2>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No downloads yet.</p>
           ) : (
