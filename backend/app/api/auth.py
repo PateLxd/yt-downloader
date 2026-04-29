@@ -88,4 +88,10 @@ def cookies_status(user: str = Depends(get_current_user)) -> CookiesStatus:
 @router.delete("/cookies", response_model=CookiesStatus)
 def clear_cookies(user: str = Depends(get_current_user)) -> CookiesStatus:
     cookies_svc.clear_override()
+    # Mirror the GET fallthrough: clearing the runtime override does not mean
+    # we have *no* cookies — the on-disk YT_DLP_COOKIES_PATH file (if
+    # configured) becomes the active source again.
+    settings = get_settings()
+    if settings.yt_dlp_cookies_path:
+        return CookiesStatus(present=True, source="file")
     return CookiesStatus(present=False, source="none")

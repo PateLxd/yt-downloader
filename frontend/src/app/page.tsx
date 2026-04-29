@@ -21,10 +21,21 @@ function DashboardInner() {
   // Job ids we've already surfaced as cookies_required so the modal doesn't
   // keep popping on every 3s poll tick if the user dismissed it.
   const seenJobCookieFailures = useRef<Set<string>>(new Set());
+  // Mirror of `cookiesOpen` so the long-lived setInterval closure can read
+  // the current value. The state variable itself is captured at mount and
+  // would otherwise stay frozen at `false`.
+  const cookiesOpenRef = useRef(false);
 
   const openCookiesModal = (reason: OpenReason) => {
     setCookiesReason(reason);
     setCookiesOpen(true);
+    cookiesOpenRef.current = true;
+  };
+
+  const closeCookiesModal = () => {
+    setCookiesOpen(false);
+    setCookiesReason(null);
+    cookiesOpenRef.current = false;
   };
 
   const refreshRecent = async () => {
@@ -40,7 +51,7 @@ function DashboardInner() {
       );
       if (cookieFail && !seenJobCookieFailures.current.has(cookieFail.id)) {
         seenJobCookieFailures.current.add(cookieFail.id);
-        if (!cookiesOpen) {
+        if (!cookiesOpenRef.current) {
           openCookiesModal({
             kind: "job",
             message:
@@ -81,8 +92,7 @@ function DashboardInner() {
   };
 
   const handleCookiesSaved = async (reason: OpenReason | null) => {
-    setCookiesOpen(false);
-    setCookiesReason(null);
+    closeCookiesModal();
     // Auto-retry the action that triggered the modal so the user doesn't
     // have to click again.
     if (reason?.kind === "metadata") {
@@ -165,10 +175,7 @@ function DashboardInner() {
       <CookiesModal
         open={cookiesOpen}
         reason={cookiesReason}
-        onClose={() => {
-          setCookiesOpen(false);
-          setCookiesReason(null);
-        }}
+        onClose={closeCookiesModal}
         onSaved={handleCookiesSaved}
       />
     </main>
