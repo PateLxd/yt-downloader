@@ -24,6 +24,9 @@ tsconfig.tsbuildinfo
 secrets/*
 !secrets/cookies.txt
 !secrets/cookies.txt.example
+# Persistent Playwright browser profile maintained by the cookie-refresh
+# service; contains the live YouTube session and must never be committed.
+secrets/yt-state/
 
 # Test artifacts (kept locally only)
 test-plan.md
