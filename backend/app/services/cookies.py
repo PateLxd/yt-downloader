@@ -100,6 +100,16 @@ def apply_cookies_to_opts(opts: dict[str, Any]) -> str | None:
     return None
 
 
+# yt-dlp YouTube player_clients that consume a PO token. When the bgutil
+# POT provider is enabled we pin yt-dlp to this list so every attempt
+# actually uses the generated token. The default yt-dlp client list
+# includes android/ios (which don't accept a POT and on flagged
+# datacenter IPs come back with empty/stub format lists), causing
+# downloads to fail with "Requested format is not available" before
+# yt-dlp ever falls back to the web client where the POT would help.
+_DEFAULT_POT_PLAYER_CLIENTS = ("web", "web_safari", "tv")
+
+
 def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
     """Wire the bgutil POT provider's ``base_url`` into yt-dlp ``extractor_args``.
 
@@ -109,6 +119,13 @@ def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
     container (service name ``pot-provider``), so we have to tell the
     plugin where to find it via the ``youtubepot-bgutilhttp:base_url``
     extractor arg.
+
+    We also force ``player_client`` to a POT-supporting subset (``web``,
+    ``web_safari``, ``tv``) — see ``_DEFAULT_POT_PLAYER_CLIENTS`` above
+    for why. Operators can override the list via the
+    ``YT_DLP_PLAYER_CLIENTS`` env var (comma-separated). Setting it to
+    an empty string keeps yt-dlp's default rotation, in case a future
+    yt-dlp update changes which clients consume POTs.
 
     Empty/unset settings.pot_provider_url is treated as "POT provider
     disabled": we don't inject extractor_args and yt-dlp behaves exactly
@@ -128,6 +145,19 @@ def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
     bgutil = dict(existing.get("youtubepot-bgutilhttp", {}))
     bgutil["base_url"] = [base_url]
     existing["youtubepot-bgutilhttp"] = bgutil
+
+    # Player client pinning. ``yt_dlp_player_clients`` is comma-separated.
+    # Setting it to whitespace/empty string is treated as "let yt-dlp
+    # pick its own default rotation" (escape hatch in case a future
+    # yt-dlp update broadens the POT-consuming client list).
+    clients = [c.strip() for c in settings.yt_dlp_player_clients.split(",") if c.strip()]
+    if clients:
+        youtube = dict(existing.get("youtube", {}))
+        # Don't clobber a player_client value the caller already set.
+        if "player_client" not in youtube:
+            youtube["player_client"] = clients
+            existing["youtube"] = youtube
+
     opts["extractor_args"] = existing
 
 

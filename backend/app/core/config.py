@@ -61,6 +61,18 @@ class Settings(BaseSettings):
     # docker-compose `pot-provider` profile: http://pot-provider:4416.
     pot_provider_url: str = ""
 
+    # Comma-separated yt-dlp YouTube ``player_client`` rotation. Only
+    # applied when the POT provider is enabled (otherwise yt-dlp's
+    # own default rotation is used). The default of ``web,web_safari,tv``
+    # matches the clients the bgutil POT plugin generates tokens for —
+    # without this pinning, yt-dlp's first-pick clients (android/ios)
+    # come back with empty/stub format lists from flagged datacenter
+    # IPs and the whole download dies with "Requested format is not
+    # available" before yt-dlp ever falls back to the web client.
+    # Override with e.g. ``web,tv`` to test a smaller set, or set to
+    # an empty string to fall back to yt-dlp defaults.
+    yt_dlp_player_clients: str = "web,web_safari,tv"
+
     # CORS
     cors_origins: str = "*"
 

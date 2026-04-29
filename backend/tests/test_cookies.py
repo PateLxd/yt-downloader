@@ -136,8 +136,35 @@ def test_apply_pot_provider_injects_base_url(monkeypatch):
 
     opts: dict = {}
     cookies_svc.apply_pot_provider_to_opts(opts)
-    assert opts["extractor_args"] == {
-        "youtubepot-bgutilhttp": {"base_url": ["http://pot-provider:4416"]}
+    args = opts["extractor_args"]
+    assert args["youtubepot-bgutilhttp"] == {"base_url": ["http://pot-provider:4416"]}
+    # Default behaviour also pins player_client so yt-dlp actually consumes
+    # the POT instead of falling through to android/ios first.
+    assert args["youtube"]["player_client"] == ["web", "web_safari", "tv"]
+
+
+def test_apply_pot_provider_respects_custom_player_clients(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    monkeypatch.setenv("YT_DLP_PLAYER_CLIENTS", "web,android")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert opts["extractor_args"]["youtube"]["player_client"] == ["web", "android"]
+
+
+def test_apply_pot_provider_skips_pinning_when_clients_empty(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    monkeypatch.setenv("YT_DLP_PLAYER_CLIENTS", "")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert "youtube" not in opts["extractor_args"]
+    assert opts["extractor_args"]["youtubepot-bgutilhttp"] == {
+        "base_url": ["http://pot-provider:4416"]
     }
 
 
@@ -146,11 +173,12 @@ def test_apply_pot_provider_preserves_existing_extractor_args(monkeypatch):
     from app.core.config import get_settings
     get_settings.cache_clear()  # type: ignore[attr-defined]
 
+    # Caller-provided player_client must NOT be overwritten by pinning.
     opts: dict = {
-        "extractor_args": {"youtube": {"player_client": ["web", "android"]}}
+        "extractor_args": {"youtube": {"player_client": ["mweb"]}}
     }
     cookies_svc.apply_pot_provider_to_opts(opts)
-    assert opts["extractor_args"]["youtube"] == {"player_client": ["web", "android"]}
+    assert opts["extractor_args"]["youtube"] == {"player_client": ["mweb"]}
     assert opts["extractor_args"]["youtubepot-bgutilhttp"] == {
         "base_url": ["http://pot-provider:4416"]
     }
