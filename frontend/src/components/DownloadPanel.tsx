@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import {
   api,
@@ -123,6 +123,10 @@ export function DownloadPanel({
   const [end, setEnd] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which timestamp input (if any) is currently focused. While focused, the
+  // player's currentTime is mirrored into the input so scrubbing the seek bar
+  // also updates the value.
+  const [focused, setFocused] = useState<"start" | "end" | null>(null);
 
   const videoFormats = useMemo(() => sortVideoFormats(meta.formats), [meta.formats]);
   const youTubeId = useMemo(() => extractYouTubeId(meta.webpage_url), [meta.webpage_url]);
@@ -174,6 +178,38 @@ export function DownloadPanel({
     if (which === "start") setStart(formatted);
     else setEnd(formatted);
   };
+
+  // Live-sync: while a timestamp input is focused, poll the player's
+  // currentTime and mirror it into that input. Only writes when the
+  // player's time has actually changed since the last tick, so typing
+  // into a paused-player input is never clobbered.
+  useEffect(() => {
+    if (!focused || !youTubeId) return;
+    let lastTime = playerRef.current?.getCurrentTime() ?? -1;
+    const id = window.setInterval(() => {
+      const t = playerRef.current?.getCurrentTime();
+      if (typeof t !== "number") return;
+      if (Math.abs(t - lastTime) < 0.1) return;
+      lastTime = t;
+      const formatted = formatTime(t);
+      if (focused === "start") setStart(formatted);
+      else setEnd(formatted);
+    }, 150);
+    return () => window.clearInterval(id);
+  }, [focused, youTubeId]);
+
+  const seekPlayerTo = (value: string) => {
+    const t = parseTime(value);
+    if (t !== null) playerRef.current?.seekTo(t);
+  };
+
+  const handleTimeKeyDown = (which: "start" | "end") =>
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        seekPlayerTo(which === "start" ? start : end);
+      }
+    };
 
   const tabs: Tab[] = ["video", "audio", "clip"];
   return (
@@ -267,7 +303,8 @@ export function DownloadPanel({
             <>
               <YouTubePlayer ref={playerRef} videoId={youTubeId} />
               <p className="text-xs text-muted-foreground">
-                Use the player&apos;s seek bar to find your start/end, then tap the buttons below.
+                Click a time input → press Enter to seek the player there, or drag the
+                player&apos;s seek bar to live-update the focused input.
               </p>
             </>
           ) : (
@@ -292,19 +329,17 @@ export function DownloadPanel({
                   </button>
                 )}
               </div>
-              <input className="input" value={start} onChange={(e) => setStart(e.target.value)} />
-              {youTubeId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const t = parseTime(start);
-                    if (t !== null) playerRef.current?.seekTo(t);
-                  }}
-                  className="text-xs text-muted-foreground hover:text-primary hover:underline"
-                >
-                  Seek player to start
-                </button>
-              )}
+              <input
+                className={cn(
+                  "input transition-shadow",
+                  focused === "start" && "ring-2 ring-primary/40"
+                )}
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                onFocus={() => setFocused("start")}
+                onBlur={() => setFocused((f) => (f === "start" ? null : f))}
+                onKeyDown={handleTimeKeyDown("start")}
+              />
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
@@ -321,19 +356,17 @@ export function DownloadPanel({
                   </button>
                 )}
               </div>
-              <input className="input" value={end} onChange={(e) => setEnd(e.target.value)} />
-              {youTubeId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const t = parseTime(end);
-                    if (t !== null) playerRef.current?.seekTo(t);
-                  }}
-                  className="text-xs text-muted-foreground hover:text-primary hover:underline"
-                >
-                  Seek player to end
-                </button>
-              )}
+              <input
+                className={cn(
+                  "input transition-shadow",
+                  focused === "end" && "ring-2 ring-primary/40"
+                )}
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                onFocus={() => setFocused("end")}
+                onBlur={() => setFocused((f) => (f === "end" ? null : f))}
+                onKeyDown={handleTimeKeyDown("end")}
+              />
             </div>
           </div>
 
