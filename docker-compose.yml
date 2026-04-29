@@ -69,6 +69,33 @@ services:
     volumes:
       - downloads:/tmp/downloads
 
+  # Headless-Chromium service that keeps YouTube cookies fresh on a schedule.
+  # Disabled by default — pulls a ~1.5 GB Playwright image, which is overkill
+  # for users who are happy to re-upload cookies manually every few weeks.
+  # Enable with:
+  #     COMPOSE_PROFILES=cookie-refresh docker compose up -d
+  # or by exporting it in .env (`COMPOSE_PROFILES=cookie-refresh`).
+  cookie-refresh:
+    profiles: ["cookie-refresh"]
+    build:
+      context: ./cookie_refresh
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://valkey:6379/0
+    volumes:
+      # Read-write so the service can rewrite the file with refreshed cookies.
+      # Backend + worker still mount this :ro further up; that's fine, the
+      # underlying inode is the same so they pick up the new content on next read.
+      - ./secrets/cookies.txt:/run/cookies.txt:rw
+      # Persistent Playwright profile so we don't redo the EU consent dialog
+      # and YouTube's cookie warm-up on every refresh.
+      - ./secrets/yt-state:/state:rw
+    depends_on:
+      valkey:
+        condition: service_healthy
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped

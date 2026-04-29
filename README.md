@@ -80,6 +80,59 @@ The file is bind-mounted into both `backend` and `worker` containers at
 so the bind mount always resolves to a file — overwrite it with your real
 cookies. `secrets/cookies.txt.example` documents the expected format.
 
+When yt-dlp later starts hitting the bot challenge again (cookies expired,
+Google rotated session), you can paste a fresh export straight into the UI:
+the *Update cookies* button on a failed job — or the link next to
+*Recent downloads* — opens a modal that POSTs the new cookies to
+`/api/auth/cookies`. They're stored in Valkey with a 7-day TTL
+(`COOKIES_OVERRIDE_TTL_SECONDS`) and override the on-disk file until they
+expire.
+
+### Auto-refreshing cookies (opt-in)
+
+If you'd rather not re-export cookies manually every few weeks, there's an
+optional `cookie-refresh` service that uses headless Chromium (Playwright)
+to keep the YouTube session warm:
+
+```bash
+# .env
+COMPOSE_PROFILES=cookie-refresh
+docker compose up -d
+```
+
+What it does on each cycle (default: every 6h, configurable via
+`COOKIE_REFRESH_INTERVAL_SECONDS`):
+
+1. **Logged-in keep-alive** — boots Chromium with the existing
+   `secrets/cookies.txt` (or a previously-saved Playwright profile in
+   `secrets/yt-state/`), visits `youtube.com/feed/subscriptions`, confirms
+   we're still authenticated, and plays a short video to extend the
+   session.
+2. **Anonymous fallback** — if the keep-alive detects we've been signed
+   out (Google forced re-auth), it falls back to visiting YouTube
+   anonymously, accepting the EU consent dialog, and at least getting
+   the consent + visitor cookies. You'll see a `WARNING` in the logs
+   when this happens — that's your cue to re-upload a real cookies.txt.
+3. Refreshed cookies are written to **both** `secrets/cookies.txt` (so
+   they survive restarts) **and** the Valkey runtime override (so the
+   next download picks them up without a restart).
+
+Caveats:
+
+- The Playwright image is ~1.5 GB. If disk is tight on your VPS, leave
+  the service disabled and use the *paste cookies in the UI* flow above
+  instead.
+- The first run needs an existing `secrets/cookies.txt` to bootstrap
+  the logged-in session — the service can't log into Google for you.
+- Watch the logs after the first run to see whether the keep-alive
+  succeeded:
+  ```bash
+  docker compose logs cookie-refresh | tail -30
+  ```
+  You're looking for `Detected signed-in YouTube session` and
+  `__Secure-1PSID expires at <date>` entries. Anything else means it
+  fell back to anonymous.
+
 ### Services
 
 | Service | Purpose |
@@ -88,6 +141,7 @@ cookies. `secrets/cookies.txt.example` documents the expected format.
 | `backend` | FastAPI HTTP API |
 | `worker` | RQ worker (replicas: 2 → matches the 2-job concurrency cap) |
 | `cleanup` | Sweeper that deletes files older than 10 min every 2 min |
+| `cookie-refresh` | (opt-in) Playwright service that warms the YouTube session every 6h |
 | `frontend` | Next.js standalone server |
 | `nginx` | Reverse proxy on port 80 |
 
