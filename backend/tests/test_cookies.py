@@ -184,6 +184,26 @@ def test_apply_pot_provider_preserves_existing_extractor_args(monkeypatch):
     }
 
 
+def test_apply_proxy_noop_when_unset(monkeypatch):
+    monkeypatch.setenv("YT_DLP_PROXY", "")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_proxy_to_opts(opts)
+    assert "proxy" not in opts
+
+
+def test_apply_proxy_sets_proxy_when_configured(monkeypatch):
+    monkeypatch.setenv("YT_DLP_PROXY", "http://user:pass@residential.proxy:8080")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_proxy_to_opts(opts)
+    assert opts["proxy"] == "http://user:pass@residential.proxy:8080"
+
+
 def test_override_round_trip(monkeypatch):
     fake = _FakeRedis()
     monkeypatch.setattr(cookies_svc, "get_redis", lambda: fake)

@@ -161,6 +161,18 @@ def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
     opts["extractor_args"] = existing
 
 
+def apply_proxy_to_opts(opts: dict[str, Any]) -> None:
+    """Set the yt-dlp ``proxy`` option from settings, if configured.
+
+    Mirrors yt-dlp's CLI ``--proxy`` flag. Supports HTTP/HTTPS/SOCKS5.
+    Leaves ``opts`` untouched when the setting is empty so behavior on
+    hosts that don't need a proxy is identical to before this change.
+    """
+    proxy = (get_settings().yt_dlp_proxy or "").strip()
+    if proxy:
+        opts["proxy"] = proxy
+
+
 def cleanup_tmp_cookies(tmp_path: str | None) -> None:
     if not tmp_path:
         return

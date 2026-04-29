@@ -101,6 +101,14 @@ tokens from it via yt-dlp's `youtubepot-bgutilhttp:base_url` extractor arg.
 Adds ~150 MB to the stack (Node + bgutil server). Leave the env vars unset
 to opt out — yt-dlp behaves exactly as before.
 
+If you've enabled the POT provider AND set `YT_DLP_COOKIES_PATH` AND it
+still fails with `Requested format is not available`, your IP is among
+the most heavily flagged ones and you'll need a residential proxy on
+top. Set `YT_DLP_PROXY` in `.env` (e.g.
+`YT_DLP_PROXY=http://user:pass@residential.proxy:port`) and restart
+backend + worker. Webshare/IPRoyal/etc. typically run ~$5–15/month for
+low download volume.
+
 ### Services
 
 | Service | Purpose |

@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     # an empty string to fall back to yt-dlp defaults.
     yt_dlp_player_clients: str = "web,web_safari,tv"
 
+    # Optional HTTP/HTTPS/SOCKS proxy URL for yt-dlp traffic. Set this
+    # when even cookies + POT aren't enough to pass YouTube's bot
+    # challenge — typically because the host's outbound IP is too
+    # heavily flagged. A residential proxy (Webshare, IPRoyal, etc.)
+    # is the practical fix in that case.
+    # Format examples:
+    #   http://user:pass@host:port
+    #   socks5://user:pass@host:port
+    # Leave empty to disable.
+    yt_dlp_proxy: str = ""
+
     # CORS
     cors_origins: str = "*"
 
