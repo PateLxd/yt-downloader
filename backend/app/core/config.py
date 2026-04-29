@@ -51,6 +51,16 @@ class Settings(BaseSettings):
     # browser without SSHing into the box. Defaults to 7 days.
     cookies_override_ttl_seconds: int = 7 * 24 * 60 * 60
 
+    # URL of the bgutil-ytdlp-pot-provider HTTP server. When set, the
+    # backend + worker tell the bgutil yt-dlp plugin to fetch YouTube
+    # PO tokens from this server instead of the plugin's hard-coded
+    # default of http://127.0.0.1:4416. Setting this to an empty string
+    # disables the plugin (it falls back to the 127.0.0.1 default,
+    # which won't resolve inside our containers — so empty == disabled
+    # for our purposes). Recommended value when running the
+    # docker-compose `pot-provider` profile: http://pot-provider:4416.
+    pot_provider_url: str = ""
+
     # CORS
     cors_origins: str = "*"
 

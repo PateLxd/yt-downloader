@@ -119,6 +119,43 @@ def test_apply_cookies_noop_when_nothing_configured(monkeypatch):
     assert "cookiefile" not in opts
 
 
+def test_apply_pot_provider_noop_when_unset(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert "extractor_args" not in opts
+
+
+def test_apply_pot_provider_injects_base_url(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert opts["extractor_args"] == {
+        "youtubepot-bgutilhttp": {"base_url": ["http://pot-provider:4416"]}
+    }
+
+
+def test_apply_pot_provider_preserves_existing_extractor_args(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {
+        "extractor_args": {"youtube": {"player_client": ["web", "android"]}}
+    }
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert opts["extractor_args"]["youtube"] == {"player_client": ["web", "android"]}
+    assert opts["extractor_args"]["youtubepot-bgutilhttp"] == {
+        "base_url": ["http://pot-provider:4416"]
+    }
+
+
 def test_override_round_trip(monkeypatch):
     fake = _FakeRedis()
     monkeypatch.setattr(cookies_svc, "get_redis", lambda: fake)

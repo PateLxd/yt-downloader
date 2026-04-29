@@ -6,7 +6,11 @@ from typing import Any
 from yt_dlp import YoutubeDL
 
 from ..schemas.jobs import FormatInfo, MetadataResponse
-from .cookies import apply_cookies_to_opts, cleanup_tmp_cookies
+from .cookies import (
+    apply_cookies_to_opts,
+    apply_pot_provider_to_opts,
+    cleanup_tmp_cookies,
+)
 
 
 def _classify(fmt: dict[str, Any]) -> str:
@@ -29,6 +33,7 @@ def fetch_metadata(url: str) -> MetadataResponse:
         "noplaylist": True,
     }
     tmp_cookies = apply_cookies_to_opts(opts)
+    apply_pot_provider_to_opts(opts)
     try:
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)

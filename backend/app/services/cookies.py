@@ -100,6 +100,37 @@ def apply_cookies_to_opts(opts: dict[str, Any]) -> str | None:
     return None
 
 
+def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
+    """Wire the bgutil POT provider's ``base_url`` into yt-dlp ``extractor_args``.
+
+    The ``bgutil-ytdlp-pot-provider`` plugin auto-registers when the package
+    is installed, but it only knows to look at ``http://127.0.0.1:4416`` by
+    default. In our docker-compose setup the provider runs in its own
+    container (service name ``pot-provider``), so we have to tell the
+    plugin where to find it via the ``youtubepot-bgutilhttp:base_url``
+    extractor arg.
+
+    Empty/unset settings.pot_provider_url is treated as "POT provider
+    disabled": we don't inject extractor_args and yt-dlp behaves exactly
+    as it did before this change. This matters for users who don't run
+    the optional ``pot-provider`` Compose profile.
+
+    Important: yt-dlp's extractor_args expects each value to be a list
+    of strings, not a single string. Passing a bare string silently
+    no-ops in some plugin versions.
+    """
+    settings = get_settings()
+    base_url = (settings.pot_provider_url or "").strip()
+    if not base_url:
+        return
+
+    existing = opts.get("extractor_args") or {}
+    bgutil = dict(existing.get("youtubepot-bgutilhttp", {}))
+    bgutil["base_url"] = [base_url]
+    existing["youtubepot-bgutilhttp"] = bgutil
+    opts["extractor_args"] = existing
+
+
 def cleanup_tmp_cookies(tmp_path: str | None) -> None:
     if not tmp_path:
         return

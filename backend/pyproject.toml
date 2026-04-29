@@ -13,7 +13,13 @@ dependencies = [
   "python-multipart>=0.0.9",
   "redis>=5.0.7",
   "rq>=1.16.2",
-  "yt-dlp>=2024.12.13",
+  "yt-dlp>=2025.05.22",
+  # POT (proof-of-origin token) provider plugin. Auto-loads as a yt-dlp
+  # plugin when installed; the runner only needs to point it at the
+  # bgutil-ytdlp-pot-provider HTTP server (default http://pot-provider:4416).
+  # Lets us pass YouTube's bot challenge on flagged datacenter IPs even
+  # when valid signed-in cookies aren't enough on their own.
+  "bgutil-ytdlp-pot-provider>=1.3.1",
   "httpx>=0.27.0",
 ]
 

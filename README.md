@@ -80,6 +80,27 @@ The file is bind-mounted into both `backend` and `worker` containers at
 so the bind mount always resolves to a file — overwrite it with your real
 cookies. `secrets/cookies.txt.example` documents the expected format.
 
+### Still hitting the bot challenge after pasting cookies?
+
+On heavily flagged datacenter IPs YouTube also requires a JavaScript-generated
+**proof-of-origin token** that yt-dlp can't compute on its own. Symptoms: even
+with valid signed-in cookies, downloads fail with *"Sign in to confirm you're
+not a bot"* or *"Requested format is not available"*. Fix: enable the optional
+`pot-provider` Compose profile, which runs the
+[bgutil POT provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)
+as a sidecar container.
+
+```bash
+echo 'COMPOSE_PROFILES=pot-provider' >> .env
+echo 'POT_PROVIDER_URL=http://pot-provider:4416' >> .env
+docker compose up -d pot-provider backend worker
+```
+
+The provider exposes port 4416 internally; the backend and worker fetch
+tokens from it via yt-dlp's `youtubepot-bgutilhttp:base_url` extractor arg.
+Adds ~150 MB to the stack (Node + bgutil server). Leave the env vars unset
+to opt out — yt-dlp behaves exactly as before.
+
 ### Services
 
 | Service | Purpose |
@@ -90,6 +111,7 @@ cookies. `secrets/cookies.txt.example` documents the expected format.
 | `cleanup` | Sweeper that deletes files older than 10 min every 2 min |
 | `frontend` | Next.js standalone server |
 | `nginx` | Reverse proxy on port 80 |
+| `pot-provider` | (opt-in) bgutil POT token provider for flagged datacenter IPs |
 
 ### Tuning concurrency
 
