@@ -100,14 +100,15 @@ def apply_cookies_to_opts(opts: dict[str, Any]) -> str | None:
     return None
 
 
-# yt-dlp YouTube player_clients that consume a PO token. When the bgutil
-# POT provider is enabled we pin yt-dlp to this list so every attempt
-# actually uses the generated token. The default yt-dlp client list
-# includes android/ios (which don't accept a POT and on flagged
-# datacenter IPs come back with empty/stub format lists), causing
-# downloads to fail with "Requested format is not available" before
-# yt-dlp ever falls back to the web client where the POT would help.
-_DEFAULT_POT_PLAYER_CLIENTS = ("web", "web_safari", "tv")
+# yt-dlp YouTube player_clients that actually return downloadable formats
+# when combined with a POT. The yt-dlp PO Token Guide's TL;DR is
+# "Use a PO Token Provider plugin to provide the mweb client with a PO
+# Token for GVS requests." (https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
+#
+# The earlier default here (web,web_safari,tv) is broken as of 2026-01:
+# see backend/app/core/config.py for the full history. This list is
+# the config-file default; operators can override via YT_DLP_PLAYER_CLIENTS.
+_DEFAULT_POT_PLAYER_CLIENTS = ("mweb", "tv_simply")
 
 
 def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
@@ -120,9 +121,9 @@ def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
     plugin where to find it via the ``youtubepot-bgutilhttp:base_url``
     extractor arg.
 
-    We also force ``player_client`` to a POT-supporting subset (``web``,
-    ``web_safari``, ``tv``) — see ``_DEFAULT_POT_PLAYER_CLIENTS`` above
-    for why. Operators can override the list via the
+    We also force ``player_client`` to ``mweb,tv_simply`` (yt-dlp's
+    current recommended setup for POT) — see ``_DEFAULT_POT_PLAYER_CLIENTS``
+    above for why. Operators can override the list via the
     ``YT_DLP_PLAYER_CLIENTS`` env var (comma-separated). Setting it to
     an empty string keeps yt-dlp's default rotation, in case a future
     yt-dlp update changes which clients consume POTs.

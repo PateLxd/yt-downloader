@@ -131,6 +131,8 @@ def test_apply_pot_provider_noop_when_unset(monkeypatch):
 
 def test_apply_pot_provider_injects_base_url(monkeypatch):
     monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    # Ensure a stale value from another test's monkeypatch doesn't leak in.
+    monkeypatch.delenv("YT_DLP_PLAYER_CLIENTS", raising=False)
     from app.core.config import get_settings
     get_settings.cache_clear()  # type: ignore[attr-defined]
 
@@ -138,9 +140,10 @@ def test_apply_pot_provider_injects_base_url(monkeypatch):
     cookies_svc.apply_pot_provider_to_opts(opts)
     args = opts["extractor_args"]
     assert args["youtubepot-bgutilhttp"] == {"base_url": ["http://pot-provider:4416"]}
-    # Default behaviour also pins player_client so yt-dlp actually consumes
-    # the POT instead of falling through to android/ios first.
-    assert args["youtube"]["player_client"] == ["web", "web_safari", "tv"]
+    # Default pins player_client to the yt-dlp PO Token Guide's recommended
+    # combo (mweb primary, tv_simply fallback). See cookies.py for why
+    # the old default of web,web_safari,tv stopped working in early 2026.
+    assert args["youtube"]["player_client"] == ["mweb", "tv_simply"]
 
 
 def test_apply_pot_provider_respects_custom_player_clients(monkeypatch):

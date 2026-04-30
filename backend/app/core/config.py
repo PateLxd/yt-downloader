@@ -63,15 +63,26 @@ class Settings(BaseSettings):
 
     # Comma-separated yt-dlp YouTube ``player_client`` rotation. Only
     # applied when the POT provider is enabled (otherwise yt-dlp's
-    # own default rotation is used). The default of ``web,web_safari,tv``
-    # matches the clients the bgutil POT plugin generates tokens for —
-    # without this pinning, yt-dlp's first-pick clients (android/ios)
-    # come back with empty/stub format lists from flagged datacenter
-    # IPs and the whole download dies with "Requested format is not
-    # available" before yt-dlp ever falls back to the web client.
-    # Override with e.g. ``web,tv`` to test a smaller set, or set to
-    # an empty string to fall back to yt-dlp defaults.
-    yt_dlp_player_clients: str = "web,web_safari,tv"
+    # own default rotation is used).
+    #
+    # Default of ``mweb,tv_simply`` follows the yt-dlp YouTube PO Token
+    # Guide's current (2026-03) TL;DR: *"Use a PO Token Provider plugin
+    # to provide the mweb client with a PO Token for GVS requests."*
+    # https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide
+    #
+    # Earlier versions of this file defaulted to ``web,web_safari,tv``
+    # which no longer works reliably:
+    #  - ``tv`` now returns LOGIN_REQUIRED on many videos (yt-dlp#15583)
+    #  - ``web_safari`` HLS formats now require JS (yt-dlp PR #15601)
+    #  - ``web`` returns SABR-only formats that the default ``bestvideo*+
+    #    bestaudio/best`` selector can't always combine, producing
+    #    "Requested format is not available".
+    # ``tv_simply`` is kept as a fallback because it still works without
+    # account cookies for many videos when ``mweb`` fails.
+    #
+    # Override with a custom comma-separated list, or set to an empty
+    # string to fall back to yt-dlp's own default rotation.
+    yt_dlp_player_clients: str = "mweb,tv_simply"
 
     # Optional HTTP/HTTPS/SOCKS proxy URL for yt-dlp traffic. Set this
     # when even cookies + POT aren't enough to pass YouTube's bot
