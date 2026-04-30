@@ -100,6 +100,80 @@ def apply_cookies_to_opts(opts: dict[str, Any]) -> str | None:
     return None
 
 
+# yt-dlp YouTube player_clients that actually return downloadable formats
+# when combined with a POT. The yt-dlp PO Token Guide's TL;DR is
+# "Use a PO Token Provider plugin to provide the mweb client with a PO
+# Token for GVS requests." (https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)
+#
+# The earlier default here (web,web_safari,tv) is broken as of 2026-01:
+# see backend/app/core/config.py for the full history. This list is
+# the config-file default; operators can override via YT_DLP_PLAYER_CLIENTS.
+_DEFAULT_POT_PLAYER_CLIENTS = ("mweb", "tv_simply")
+
+
+def apply_pot_provider_to_opts(opts: dict[str, Any]) -> None:
+    """Wire the bgutil POT provider's ``base_url`` into yt-dlp ``extractor_args``.
+
+    The ``bgutil-ytdlp-pot-provider`` plugin auto-registers when the package
+    is installed, but it only knows to look at ``http://127.0.0.1:4416`` by
+    default. In our docker-compose setup the provider runs in its own
+    container (service name ``pot-provider``), so we have to tell the
+    plugin where to find it via the ``youtubepot-bgutilhttp:base_url``
+    extractor arg.
+
+    We also force ``player_client`` to ``mweb,tv_simply`` (yt-dlp's
+    current recommended setup for POT) — see ``_DEFAULT_POT_PLAYER_CLIENTS``
+    above for why. Operators can override the list via the
+    ``YT_DLP_PLAYER_CLIENTS`` env var (comma-separated). Setting it to
+    an empty string keeps yt-dlp's default rotation, in case a future
+    yt-dlp update changes which clients consume POTs.
+
+    Empty/unset settings.pot_provider_url is treated as "POT provider
+    disabled": we don't inject extractor_args and yt-dlp behaves exactly
+    as it did before this change. This matters for users who don't run
+    the optional ``pot-provider`` Compose profile.
+
+    Important: yt-dlp's extractor_args expects each value to be a list
+    of strings, not a single string. Passing a bare string silently
+    no-ops in some plugin versions.
+    """
+    settings = get_settings()
+    base_url = (settings.pot_provider_url or "").strip()
+    if not base_url:
+        return
+
+    existing = opts.get("extractor_args") or {}
+    bgutil = dict(existing.get("youtubepot-bgutilhttp", {}))
+    bgutil["base_url"] = [base_url]
+    existing["youtubepot-bgutilhttp"] = bgutil
+
+    # Player client pinning. ``yt_dlp_player_clients`` is comma-separated.
+    # Setting it to whitespace/empty string is treated as "let yt-dlp
+    # pick its own default rotation" (escape hatch in case a future
+    # yt-dlp update broadens the POT-consuming client list).
+    clients = [c.strip() for c in settings.yt_dlp_player_clients.split(",") if c.strip()]
+    if clients:
+        youtube = dict(existing.get("youtube", {}))
+        # Don't clobber a player_client value the caller already set.
+        if "player_client" not in youtube:
+            youtube["player_client"] = clients
+            existing["youtube"] = youtube
+
+    opts["extractor_args"] = existing
+
+
+def apply_proxy_to_opts(opts: dict[str, Any]) -> None:
+    """Set the yt-dlp ``proxy`` option from settings, if configured.
+
+    Mirrors yt-dlp's CLI ``--proxy`` flag. Supports HTTP/HTTPS/SOCKS5.
+    Leaves ``opts`` untouched when the setting is empty so behavior on
+    hosts that don't need a proxy is identical to before this change.
+    """
+    proxy = (get_settings().yt_dlp_proxy or "").strip()
+    if proxy:
+        opts["proxy"] = proxy
+
+
 def cleanup_tmp_cookies(tmp_path: str | None) -> None:
     if not tmp_path:
         return

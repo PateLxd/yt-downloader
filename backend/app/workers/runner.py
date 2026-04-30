@@ -15,6 +15,8 @@ from yt_dlp import YoutubeDL
 from ..core.config import get_settings
 from ..services.cookies import (
     apply_cookies_to_opts,
+    apply_pot_provider_to_opts,
+    apply_proxy_to_opts,
     cleanup_tmp_cookies,
     is_bot_challenge_error,
 )
@@ -96,6 +98,8 @@ def _build_ydl_opts(job_id: str, req: dict[str, Any], outtmpl: str) -> tuple[dic
         "fragment_retries": 5,
     }
     tmp_cookies = apply_cookies_to_opts(opts)
+    apply_pot_provider_to_opts(opts)
+    apply_proxy_to_opts(opts)
 
     if mode == "audio":
         bitrate = req.get("audio_bitrate") or "192"

@@ -9,6 +9,32 @@ services:
       timeout: 3s
       retries: 10
 
+  pot-provider:
+    # Proof-of-origin token provider for yt-dlp. Lets us pass YouTube's
+    # bot challenge on flagged datacenter IPs even when valid signed-in
+    # cookies aren't enough on their own. Opt-in via Compose profile so
+    # users without this problem don't pay the extra image.
+    #   echo 'COMPOSE_PROFILES=pot-provider' >> .env
+    #   echo 'POT_PROVIDER_URL=http://pot-provider:4416' >> .env
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    init: true
+    restart: unless-stopped
+    profiles: ["pot-provider"]
+    expose:
+      - "4416"
+    healthcheck:
+      # The bgutil image only ships node — no wget/curl — so run the probe
+      # through node itself.
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "require('http').get('http://127.0.0.1:4416/ping', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   backend:
     build:
       context: ./backend

@@ -119,6 +119,94 @@ def test_apply_cookies_noop_when_nothing_configured(monkeypatch):
     assert "cookiefile" not in opts
 
 
+def test_apply_pot_provider_noop_when_unset(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert "extractor_args" not in opts
+
+
+def test_apply_pot_provider_injects_base_url(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    # Ensure a stale value from another test's monkeypatch doesn't leak in.
+    monkeypatch.delenv("YT_DLP_PLAYER_CLIENTS", raising=False)
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    args = opts["extractor_args"]
+    assert args["youtubepot-bgutilhttp"] == {"base_url": ["http://pot-provider:4416"]}
+    # Default pins player_client to the yt-dlp PO Token Guide's recommended
+    # combo (mweb primary, tv_simply fallback). See cookies.py for why
+    # the old default of web,web_safari,tv stopped working in early 2026.
+    assert args["youtube"]["player_client"] == ["mweb", "tv_simply"]
+
+
+def test_apply_pot_provider_respects_custom_player_clients(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    monkeypatch.setenv("YT_DLP_PLAYER_CLIENTS", "web,android")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert opts["extractor_args"]["youtube"]["player_client"] == ["web", "android"]
+
+
+def test_apply_pot_provider_skips_pinning_when_clients_empty(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    monkeypatch.setenv("YT_DLP_PLAYER_CLIENTS", "")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert "youtube" not in opts["extractor_args"]
+    assert opts["extractor_args"]["youtubepot-bgutilhttp"] == {
+        "base_url": ["http://pot-provider:4416"]
+    }
+
+
+def test_apply_pot_provider_preserves_existing_extractor_args(monkeypatch):
+    monkeypatch.setenv("POT_PROVIDER_URL", "http://pot-provider:4416")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    # Caller-provided player_client must NOT be overwritten by pinning.
+    opts: dict = {
+        "extractor_args": {"youtube": {"player_client": ["mweb"]}}
+    }
+    cookies_svc.apply_pot_provider_to_opts(opts)
+    assert opts["extractor_args"]["youtube"] == {"player_client": ["mweb"]}
+    assert opts["extractor_args"]["youtubepot-bgutilhttp"] == {
+        "base_url": ["http://pot-provider:4416"]
+    }
+
+
+def test_apply_proxy_noop_when_unset(monkeypatch):
+    monkeypatch.setenv("YT_DLP_PROXY", "")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_proxy_to_opts(opts)
+    assert "proxy" not in opts
+
+
+def test_apply_proxy_sets_proxy_when_configured(monkeypatch):
+    monkeypatch.setenv("YT_DLP_PROXY", "http://user:pass@residential.proxy:8080")
+    from app.core.config import get_settings
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+    opts: dict = {}
+    cookies_svc.apply_proxy_to_opts(opts)
+    assert opts["proxy"] == "http://user:pass@residential.proxy:8080"
+
+
 def test_override_round_trip(monkeypatch):
     fake = _FakeRedis()
     monkeypatch.setattr(cookies_svc, "get_redis", lambda: fake)

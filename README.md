@@ -80,6 +80,58 @@ The file is bind-mounted into both `backend` and `worker` containers at
 so the bind mount always resolves to a file — overwrite it with your real
 cookies. `secrets/cookies.txt.example` documents the expected format.
 
+### Still hitting the bot challenge after pasting cookies?
+
+On heavily flagged datacenter IPs YouTube also requires a JavaScript-generated
+**proof-of-origin token** that yt-dlp can't compute on its own. Symptoms: even
+with valid signed-in cookies, downloads fail with *"Sign in to confirm you're
+not a bot"* or *"Requested format is not available"*.
+
+Working combination on a flagged VPS (in order of what to try):
+
+1. **Cookies.** Export a Netscape-format `cookies.txt` from a signed-in
+   browser tab and drop it at `./secrets/cookies.txt`, OR paste it via the
+   UI's **Cookies** button. Then make sure your `.env` has
+   `YT_DLP_COOKIES_PATH=/run/cookies.txt` (an empty value means yt-dlp is
+   never told to load the file, even if it exists).
+2. **POT provider.** Enable the opt-in `pot-provider` Compose profile,
+   which runs the [bgutil POT provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)
+   as a sidecar:
+   ```bash
+   echo 'COMPOSE_PROFILES=pot-provider' >> .env
+   echo 'POT_PROVIDER_URL=http://pot-provider:4416' >> .env
+   docker compose up -d --force-recreate pot-provider backend worker
+   ```
+   The backend and worker forward yt-dlp's POT requests to it via the
+   `youtubepot-bgutilhttp:base_url` extractor arg. Adds ~150 MB to the
+   stack (Node + bgutil server). Leave the env vars unset to opt out.
+3. **Player-client pin.** The default `YT_DLP_PLAYER_CLIENTS=mweb,tv_simply`
+   tracks the [yt-dlp PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide)'s
+   current recommendation. yt-dlp's own default rotation starts with
+   android/ios (which don't accept POTs and on flagged IPs return stub
+   formats), so without pinning you'll see "Requested format is not
+   available" before yt-dlp ever reaches a POT-capable client. The
+   earlier default of `web,web_safari,tv` broke in early 2026
+   (yt-dlp#15583, yt-dlp#15601): `tv` → LOGIN_REQUIRED, `web_safari`
+   HLS → JS required, `web` → SABR-only formats.
+4. **Residential proxy.** If the above still fails with the same error,
+   your IP is among the most heavily flagged and you'll need a real
+   residential IP. Set `YT_DLP_PROXY` in `.env`:
+   ```
+   YT_DLP_PROXY=http://user:pass@residential.proxy:port
+   # or
+   YT_DLP_PROXY=socks5://user:pass@residential.proxy:port
+   ```
+   Webshare/IPRoyal/etc. run ~$5–15/month for low download volume.
+
+Verifying the stack is actually wired up:
+
+```bash
+docker compose exec backend printenv POT_PROVIDER_URL YT_DLP_COOKIES_PATH YT_DLP_PLAYER_CLIENTS
+docker compose exec backend python -c "import urllib.request as u; print(u.urlopen('http://pot-provider:4416/ping', timeout=5).read().decode())"
+docker compose logs --tail=40 pot-provider  # should show "Generating POT for <video_id>"
+```
+
 ### Services
 
 | Service | Purpose |
@@ -90,6 +142,7 @@ cookies. `secrets/cookies.txt.example` documents the expected format.
 | `cleanup` | Sweeper that deletes files older than 10 min every 2 min |
 | `frontend` | Next.js standalone server |
 | `nginx` | Reverse proxy on port 80 |
+| `pot-provider` | (opt-in) bgutil POT token provider for flagged datacenter IPs |
 
 ### Tuning concurrency
 

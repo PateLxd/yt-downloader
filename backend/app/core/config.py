@@ -51,6 +51,50 @@ class Settings(BaseSettings):
     # browser without SSHing into the box. Defaults to 7 days.
     cookies_override_ttl_seconds: int = 7 * 24 * 60 * 60
 
+    # URL of the bgutil-ytdlp-pot-provider HTTP server. When set, the
+    # backend + worker tell the bgutil yt-dlp plugin to fetch YouTube
+    # PO tokens from this server instead of the plugin's hard-coded
+    # default of http://127.0.0.1:4416. Setting this to an empty string
+    # disables the plugin (it falls back to the 127.0.0.1 default,
+    # which won't resolve inside our containers — so empty == disabled
+    # for our purposes). Recommended value when running the
+    # docker-compose `pot-provider` profile: http://pot-provider:4416.
+    pot_provider_url: str = ""
+
+    # Comma-separated yt-dlp YouTube ``player_client`` rotation. Only
+    # applied when the POT provider is enabled (otherwise yt-dlp's
+    # own default rotation is used).
+    #
+    # Default of ``mweb,tv_simply`` follows the yt-dlp YouTube PO Token
+    # Guide's current (2026-03) TL;DR: *"Use a PO Token Provider plugin
+    # to provide the mweb client with a PO Token for GVS requests."*
+    # https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide
+    #
+    # Earlier versions of this file defaulted to ``web,web_safari,tv``
+    # which no longer works reliably:
+    #  - ``tv`` now returns LOGIN_REQUIRED on many videos (yt-dlp#15583)
+    #  - ``web_safari`` HLS formats now require JS (yt-dlp PR #15601)
+    #  - ``web`` returns SABR-only formats that the default ``bestvideo*+
+    #    bestaudio/best`` selector can't always combine, producing
+    #    "Requested format is not available".
+    # ``tv_simply`` is kept as a fallback because it still works without
+    # account cookies for many videos when ``mweb`` fails.
+    #
+    # Override with a custom comma-separated list, or set to an empty
+    # string to fall back to yt-dlp's own default rotation.
+    yt_dlp_player_clients: str = "mweb,tv_simply"
+
+    # Optional HTTP/HTTPS/SOCKS proxy URL for yt-dlp traffic. Set this
+    # when even cookies + POT aren't enough to pass YouTube's bot
+    # challenge — typically because the host's outbound IP is too
+    # heavily flagged. A residential proxy (Webshare, IPRoyal, etc.)
+    # is the practical fix in that case.
+    # Format examples:
+    #   http://user:pass@host:port
+    #   socks5://user:pass@host:port
+    # Leave empty to disable.
+    yt_dlp_proxy: str = ""
+
     # CORS
     cors_origins: str = "*"
 
